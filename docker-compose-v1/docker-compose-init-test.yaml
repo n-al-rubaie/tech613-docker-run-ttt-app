@@ -1,0 +1,39 @@
+services:
+  # MongoDB container used for testing database initialisation
+  mongo-init-test:
+    # Use the official MongoDB 7.0 image
+    image: mongo:7.0
+
+    # Assign a custom container name
+    container_name: tech613-mongo-init-test
+
+    ports:
+      # Map host port 27018 to container port 27017
+      - "27018:27017"
+
+    volumes:
+      # Persist MongoDB data
+      - mongo-init-test-data:/data/db
+
+      # Mount init scripts as read-only
+      - ./mongo-init:/docker-entrypoint-initdb.d:ro
+
+    healthcheck:
+      # Check MongoDB is responding
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+
+      # Run health check every 5 seconds
+      interval: 5s
+
+      # Fail check if it takes longer than 3 seconds
+      timeout: 3s
+
+      # Mark container unhealthy after 10 failures
+      retries: 10
+
+      # Wait 10 seconds before starting checks
+      start_period: 10s
+
+volumes:
+  # Named volume used to store MongoDB data persistently
+  mongo-init-test-data:
