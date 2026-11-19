@@ -1,0 +1,104 @@
+
+services:
+  # MongoDB database service
+  mongo:
+    # Use MongoDB version 7.0 image
+    image: mongo:7.0
+    
+    # Assign a fixed container name
+    container_name: tech613-mongo
+    
+    # Automatically restart unless manually stopped
+    restart: unless-stopped
+    
+    # Expose MongoDB on the host machine
+    ports:
+      - "27017:27017"
+    
+    # Persist database data using a named volume
+    volumes:
+      - mongo-data:/data/db
+    
+    # Check that MongoDB is healthy before dependent services start
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
+  # Tic-Tac-Toe application service
+  app:
+    # Pull the application image from Docker Hub
+    image: nalrubaie/tech613-tttapp:1.2.0
+    
+    # Assign a fixed container name
+    container_name: tech613-app
+    
+    # Automatically restart unless manually stopped
+    restart: unless-stopped
+    
+    # Expose the web application on port 3000
+    ports:
+      - "3000:3000"
+    
+    # Environment variables passed to the application
+    environment:
+      # Connection string to the MongoDB container
+      MONGODB_URI: mongodb://mongo:27017/tictactoe
+    
+    # Wait until MongoDB passes its health check
+    depends_on:
+      mongo:
+        condition: service_healthy
+        
+    # Check that the application is responding before marking it as healthy
+    healthcheck:
+      # Send a request to the app on port 3000
+      # Exit code 0 = healthy, Exit code 1 = unhealthy
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      
+      # Run the health check every 5 seconds
+      interval: 5s
+      
+      # Fail the check if it takes longer than 3 seconds
+      timeout: 3s
+      
+      # Mark the container as unhealthy after 10 failed checks
+      retries: 10
+      
+      # Allow 10 seconds for the application to start before checking
+      start_period: 10s
+
+  # Seed database with default scoreboard data
+  seed:
+    # Use the same application image
+    image: nalrubaie/tech613-tttapp:1.2.0
+    
+    # Assign a fixed container name
+    container_name: tech613-seed
+    
+    # Run once and do not restart after completion
+    restart: "no"
+    
+    # Execute the database seeding script
+    command: ["node", "seeds/seed.js"]
+    
+    # Environment variables used by seed.js
+    environment:
+      # MongoDB connection string
+      MONGODB_URI: mongodb://mongo:27017/tictactoe
+      
+      # URL used to access the running application
+      SEED_BASE_URL: http://app:3000
+    
+    # Wait until the application passes its health check
+    depends_on:
+      app:
+        condition: service_healthy
+
+# Define named volumes used by services
+volumes:
+  # Stores MongoDB data persistently
+  mongo-data:
+
