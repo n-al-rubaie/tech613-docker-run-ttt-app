@@ -1,0 +1,102 @@
+services:
+  mongo:
+    # Use MongoDB 7.0 image
+    image: mongo:7.0
+
+    # Custom container name
+    container_name: automatic-tech613-mongo
+
+    # Restart automatically unless manually stopped
+    restart: unless-stopped
+
+    ports:
+      # Map host port 27018 to container port 27017
+      - "27018:27017"
+
+    volumes:
+      # Store MongoDB data persistently
+      - automatic-mongo-data:/data/db
+
+    healthcheck:
+      # Check that MongoDB is responding
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+
+      # Run check every 5 seconds
+      interval: 5s
+
+      # Allow 3 seconds for a response
+      timeout: 3s
+
+      # Mark unhealthy after 10 failures
+      retries: 10
+
+      # Wait 10 seconds before starting checks
+      start_period: 10s
+
+  app:
+    # Application image from Docker Hub
+    image: nalrubaie/tech613-tttapp:1.2.0
+
+    # Custom container name
+    container_name: automatic-tech613-app
+
+    # Restart automatically unless manually stopped
+    restart: unless-stopped
+
+    ports:
+      # Map host port 3001 to application port 3000
+      - "3001:3000"
+
+    environment:
+      # MongoDB connection string for the application
+      MONGODB_URI: mongodb://mongo:27017/tictactoe
+
+    depends_on:
+      mongo:
+        # Wait for MongoDB to become healthy
+        condition: service_healthy
+
+    healthcheck:
+      # Check that the application is responding
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+
+      # Run check every 5 seconds
+      interval: 5s
+
+      # Allow 3 seconds for a response
+      timeout: 3s
+
+      # Mark unhealthy after 10 failures
+      retries: 10
+
+      # Wait 10 seconds before starting checks
+      start_period: 10s
+
+  seed:
+    # Use the application image to run the seed script
+    image: nalrubaie/tech613-tttapp:1.2.0
+
+    # Custom container name
+    container_name: automatic-tech613-seed
+
+    # Run once and then stop
+    restart: "no"
+
+    # Execute the database seeding script
+    command: ["node", "seeds/seed.js"]
+
+    environment:
+      # MongoDB connection string for the seed script
+      MONGODB_URI: mongodb://mongo:27017/tictactoe
+
+      # URL of the application service
+      SEED_BASE_URL: http://app:3000
+
+    depends_on:
+      app:
+        # Wait for the application to become healthy
+        condition: service_healthy
+
+volumes:
+  # Named volume for persistent MongoDB storage
+  automatic-mongo-data:
